@@ -5,9 +5,9 @@ import os
 import json
 
 # GLOBAL Definition
-DICOM_PATH = "/Users/manoskout/Desktop/BM_Seg/data/ct/"
-ROI_PATH = "/Users/manoskout/Desktop/BM_Seg/data/roi/"
-OUTPUT_PATH = "/Users/manoskout/Desktop/BM_Seg/data/output"
+DICOM_PATH = "data/ct/"
+ROI_PATH = "data/roi/"
+OUTPUT_PATH = "data/output"
 # Get the patient names
 PATIENTS = [i for i in os.listdir(
     DICOM_PATH) if i != "DIRFILE" and i != ".DS_Store"]
@@ -22,7 +22,11 @@ class SetEncoder(json.JSONEncoder):
 
 
 def save_metadata_json(data):
-    with open(f'{OUTPUT_PATH}/metadata.json', 'w') as outfile:
+    output_file = f'{OUTPUT_PATH}/metadata.json'
+    os.makedirs(OUTPUT_PATH, exist_ok=True)
+    if os.path.exists(output_file):
+        os.remove(output_file)
+    with open(output_file, 'w') as outfile:
         json.dump(data, outfile, cls=SetEncoder)
 
 
@@ -45,8 +49,7 @@ def main():
         )
         break
         # pat.save_volume_with_ROI_only()
-        # break
-    save_metadata_json(patient_id)
+    save_metadata_json(patients_metadata)
 
     visualize_boxes(volume, masks, patients_metadata[patient_id]["centroids"])
 
