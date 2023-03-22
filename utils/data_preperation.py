@@ -141,7 +141,7 @@ class Patient:
                         "x": cX,
                         "y": cY,
                     },
-                    "bounding_box": {
+                    "bbox": {
                         "x1": x1,
                         "y1": y1,
                         "x2": x2,
