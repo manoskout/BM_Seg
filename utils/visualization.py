@@ -15,8 +15,8 @@ def visualize_boxes(volume, mask, centroids):
     msk = axs[1].imshow(im_masked[:, :, z//2], cmap="gray")
     for i, coords in enumerate(centroids[z//2], start=2):
         axs[i].imshow(volume[
-            coords["bounding_box_20"]["y1"]:coords["bounding_box_20"]["y2"],
-            coords["bounding_box_20"]["x1"]:coords["bounding_box_20"]["x2"],
+            coords["bounding_box"]["y1"]:coords["bounding_box"]["y2"],
+            coords["bounding_box"]["x1"]:coords["bounding_box"]["x2"],
             z//2
         ], cmap="gray")
 
@@ -33,8 +33,8 @@ def visualize_boxes(volume, mask, centroids):
         for i, coords in enumerate(centroids[index], start=2):
 
             axs[i].imshow(volume[
-                coords["bounding_box_20"]["y1"]:coords["bounding_box_20"]["y2"],
-                coords["bounding_box_20"]["x1"]:coords["bounding_box_20"]["x2"],
+                coords["bounding_box"]["y1"]:coords["bounding_box"]["y2"],
+                coords["bounding_box "]["x1"]:coords["bounding_box"]["x2"],
                 index
             ], cmap="gray")
         fig.canvas.draw()
