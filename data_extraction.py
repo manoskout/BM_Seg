@@ -46,18 +46,14 @@ def main():
         break
         # pat.save_volume_with_ROI_only()
         # break
-    # save_metadata_json(patient_id)
+    save_metadata_json(patient_id)
 
     visualize_boxes(volume, masks, patients_metadata[patient_id]["centroids"])
 
     windowed_vol = preprocessing.windowing.volume_windowing(volume)
-    gaussian_filtered = preprocessing.gaussian_filter(windowed_vol)
-    # # median_filtered = preprocessing.median_filter(windowed_vol)  # too bright
-    # # wavelet_filtered = preprocessing.wavelet_filter(windowed_vol)
-    # # nl_filtered = preprocessing.nl_means_filter(windowed_vol)
-    # mips_vol = preprocessing.maximum_intensity_projection(volume)
+
     visualize_windowing(
-        volume=volume, windowed=windowed_vol, filtered=gaussian_filtered)
+        volume=volume, windowed=windowed_vol)
 
 
 if __name__ == "__main__":
