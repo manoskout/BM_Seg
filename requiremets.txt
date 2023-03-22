@@ -2,5 +2,7 @@ matplotlib
 numpy
 pydicom
 scipy
-pywt
+PyWavelets
 scikit-image
+nibabel
+opencv-python
