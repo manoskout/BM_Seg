@@ -13,7 +13,6 @@ def visualize_boxes(volume, mask, centroids):
     im = axs[0].imshow(volume[:, :, z//2], cmap="gray")
     im_masked = np.ma.masked_array(volume, masked)
     msk = axs[1].imshow(im_masked[:, :, z//2], cmap="gray")
-    print(centroids)
     for i, coords in enumerate(centroids[z//2], start=2):
         axs[i].imshow(volume[
             coords["bbox"]["y1"]:coords["bbox"]["y2"],

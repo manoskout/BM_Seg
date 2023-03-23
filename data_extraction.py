@@ -40,10 +40,8 @@ def main():
         volume, masks = pat.data_ROI_only()
 
         patients_metadata[patient_id] = pat.extract_json_file()
-        # print(patients_metadata[patient_idq]["centroids"])
-        # print(type(volume))
+
         preprocessing = Preprocessing(
-            # volume=volume,
             window="soft_tissue",
             metadata=patients_metadata[patient_id]["metadata"]
         )
