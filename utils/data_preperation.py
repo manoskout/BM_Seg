@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Tuple
 import pydicom as dcm
 from pydicom import dicomdir
 import numpy as np
@@ -6,16 +6,17 @@ import nibabel as nib
 import os
 import cv2 as cv
 from preprocess.windowing import Preprocessing
-
+import scipy
 
 class Patient:
     def __init__(
         self,
-        patient_id,
-        ct_dir,
-        mask_dir,
-        output_path,
-        mask_extension=".nii.gz",
+        patient_id:str,
+        ct_dir:str,
+        mask_dir:str,
+        output_path: str,
+        mask_extension: str= ".nii.gz",
+        image_crop: tuple= (384,384)
     ) -> None:
 
         self.patient_id = patient_id
@@ -57,13 +58,11 @@ class Patient:
         except ValueError as e:
             raise ValueError("Failed to load patient metadata")
 
-    def dicom_extraction(self, only_location=False) -> list:
+    def dicom_extraction(self, only_location: bool =False) -> list:
         dicom_files = []
         for filename in self.get_filenames():
             sl = dcm.dcmread(filename)
-            # print(f"Image Position {sl.ImagePositionPatient}, Slice location: {sl.SliceLocation}")
             dicom_files.append(sl)
-        # print(sl)
         if only_location:
             return sorted([float(x.SliceLocation) for x in dicom_files])
 
@@ -108,7 +107,6 @@ class Patient:
         locations = []
         # Loop through the slices of the mask image
         for z,loc in zip(range(mask_size[2]), sl_locations):
-            # print(self.patient_masks)
             slice = self.patient_masks[:, :, z]
             if slice.any():
                 if len(np.nonzero(slice)[0]) < 100:
@@ -123,7 +121,7 @@ class Patient:
             "SliceLocation":locations
                 }
 
-    def data_ROI_only(self):
+    def data_ROI_only(self) -> Tuple[np.ndarray, np.ndarray] :
         indexes = self.get_segmented_region()["Indexes"]
         masks = []
         slices = []
@@ -168,7 +166,7 @@ class Patient:
 
         return centroids
 
-    def get_bounding_box(self, cX, cY, box_size=(40, 40)) -> tuple:
+    def get_bounding_box(self, cX:float, cY: float, box_size: tuple =(40, 40)) -> Tuple[int,int,int,int]:
         """
         Function that returns the `top left` and `bottom right` corner of the bounding box
         """
@@ -187,10 +185,22 @@ class Patient:
         patient_metadata["slice_of_interest"] = self.get_segmented_region(
         )
         patient_metadata["centroids"] = self.get_centroids()
-
         return patient_metadata
 
-    def save_volume_with_ROI_only(self, save_metadata=True) -> None:
+
+    # def resample(self, previous_spacing, new_spacing=[1,1,1]):
+    # # Determine current pixel spacing
+    #     spacing = np.array(previous_spacing, dtype=np.float32)
+    #     resize_factor = spacing / new_spacing
+    #     new_real_shape = self.patient_volume.shape * resize_factor
+    #     new_shape = np.round(new_real_shape)
+    #     real_resize_factor = new_shape / self.patient_volume.shape
+    #     new_spacing = spacing / real_resize_factor
+        
+    #     image = scipy.ndimage.interpolation.zoom(self.patient_volume, real_resize_factor, mode='nearest')
+        
+        return image, new_spacing
+    def save_volume_with_ROI_only(self, save_metadata: bool=True) -> None:
         new_volume_path = os.path.join(self.output_path, "ct")
         new_mask_path = os.path.join(self.output_path, "mask")
         os.makedirs(new_volume_path, exist_ok=True)
