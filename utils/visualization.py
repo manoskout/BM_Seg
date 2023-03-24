@@ -21,7 +21,7 @@ def visualize_boxes(volume, mask, centroids):
         ], cmap="gray")
 
     slider_ax = plt.axes([0.2, 0.02, 0.6, 0.04])
-    slider = Slider(slider_ax, 'Index', 1, z, valinit=z//2, valstep=1)
+    slider = Slider(slider_ax, 'Index', 0, z-1, valinit=z//2, valstep=1)
 
     # Define a function to update the displayed image when the slider is moved
     def update(val):
@@ -60,7 +60,7 @@ def visualize_windowing(volume, windowed, filtered=None):
     # fil = axs[2].imshow(filtered[:, :, z//2], cmap="gray")
 
     slider_ax = plt.axes([0.2, 0.02, 0.6, 0.04])
-    slider = Slider(slider_ax, 'Index', 1, z, valinit=z//2, valstep=1)
+    slider = Slider(slider_ax, 'Index', 1, z-1, valinit=z//2, valstep=1)
 
     # Define a function to update the displayed image when the slider is moved
     def update(val):

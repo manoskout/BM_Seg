@@ -3,7 +3,57 @@ import pydicom as dcm
 import scipy
 import pywt
 import skimage.restoration as restoration
+from typing import Tuple
 
+
+def crop_pad_vol(vol:np.ndarray, mask: np.ndarray, crop_size:tuple = (384,384))-> Tuple[np.ndarray, np.ndarray]:
+
+    cropx, cropy = crop_size
+    h, w, z = vol.shape
+    starty = startx = 0
+
+    # Crop only if the crop size is smaller than image size
+    if cropy <= h:
+        starty = h//2-(cropy//2)
+
+    if cropx <= w:
+        startx = w//2-(cropx//2)
+
+    cropped_img = vol[starty:starty+cropy, startx:startx+cropx, :]
+    cropped_msk = mask[starty:starty+cropy, startx:startx+cropx, :]
+
+
+    # Add padding, if the image is smaller than the desired dimensions
+    old_image_height, old_image_width, old_image_z = cropped_img.shape
+    new_image_height, new_image_width = old_image_height, old_image_width
+
+    if old_image_height < cropy:
+        new_image_height = cropy
+    if old_image_width < cropy:
+        new_image_width = cropy
+
+    if (old_image_height != new_image_height) or (old_image_width != new_image_width):
+
+        padded_img = np.full(
+            (new_image_height, new_image_width), 0, dtype=np.float32)
+        padded_msk = np.full(
+            (new_image_height, new_image_width), 0, dtype=np.float32)
+
+        x_center = (new_image_height - old_image_width) // 2
+        y_center = (new_image_width - old_image_height) // 2
+
+        padded_img[y_center:y_center+old_image_height,
+                    x_center:x_center+old_image_width, :] = cropped_img
+        padded_msk[y_center:y_center+old_image_height,
+                    x_center:x_center+old_image_width, :] = cropped_img
+
+        # print('Padded: ',padded_img.shape)
+        new_vol, new_mask = padded_img, padded_msk
+
+    else:
+        new_vol, new_mask = cropped_img, cropped_msk
+    # print("IMAGE_SHAPE: ",new_sample['image'].shape)
+    return new_vol, new_mask
 
 def check_volume(vol):
     if type(vol) == np.ndarray:

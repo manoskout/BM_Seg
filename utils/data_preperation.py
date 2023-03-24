@@ -5,18 +5,19 @@ import numpy as np
 import nibabel as nib
 import os
 import cv2 as cv
-from preprocess.windowing import Preprocessing
+from preprocess.windowing import Preprocessing, crop_pad_vol
 import scipy
+
 
 class Patient:
     def __init__(
         self,
-        patient_id:str,
-        ct_dir:str,
-        mask_dir:str,
+        patient_id: str,
+        ct_dir: str,
+        mask_dir: str,
         output_path: str,
-        mask_extension: str= ".nii.gz",
-        image_crop: tuple= (384,384)
+        mask_extension: str = ".nii.gz",
+        image_crop: Union[tuple, None] = None
     ) -> None:
 
         self.patient_id = patient_id
@@ -32,8 +33,11 @@ class Patient:
         self.patient_volume = self.get_volume()
         self.patient_masks = self.get_mask()
         self.output_path = output_path
+        self.dicom_output = os.path.join(self.output_path, "images")
+        self.mask_output = os.path.join(self.output_path, "masks")
+        self.image_crop = image_crop
 
-    def get_patient_metadata(self,) -> Union[dcm.FileDataset,None]:
+    def get_patient_metadata(self,) -> Union[dcm.FileDataset, None]:
         """
         Each CT scan contains its own DIRFILE that contains 
         information for patient's metadata and the CT volume
@@ -44,7 +48,7 @@ class Patient:
             return None
         return metadata
 
-    def get_filenames(self,) -> Union[list,None]:
+    def get_filenames(self,) -> Union[list, None]:
         """
         This function is not completely right since we added hardcoded the second element
         TODO -> check a generalized method for getting the slice folder
@@ -52,13 +56,13 @@ class Patient:
         try:
             if self.patient_metadata:
                 ct_folder = os.path.join(
-                self.ct_path, self.patient_metadata.DirectoryRecordSequence[0].ReferencedFileID[1])
+                    self.ct_path, self.patient_metadata.DirectoryRecordSequence[0].ReferencedFileID[1])
                 return [os.path.join(ct_folder, i) for i in os.listdir(ct_folder)
-                if i != "DIRFILE" and i != ".DS_Store"]
+                        if i != "DIRFILE" and i != ".DS_Store"]
         except ValueError as e:
             raise ValueError("Failed to load patient metadata")
 
-    def dicom_extraction(self, only_location: bool =False) -> list:
+    def dicom_extraction(self, only_location: bool = False) -> list:
         dicom_files = []
         for filename in self.get_filenames():
             sl = dcm.dcmread(filename)
@@ -83,12 +87,20 @@ class Patient:
         return mask
 
     def get_shape(self) -> tuple:
-        return (
-            self.patient_metadata.DirectoryRecordSequence[0].Rows,
-            self.patient_metadata.DirectoryRecordSequence[0].Columns,
-            int(
-                self.patient_metadata.DirectoryRecordSequence[0].NumberOfSeriesRelatedInstances)
-        )
+        if self.image_crop:
+            return (
+                self.image_crop[0],
+                self.image_crop[1],
+                int(
+                    self.patient_metadata.DirectoryRecordSequence[0].NumberOfSeriesRelatedInstances)
+            )
+        else:
+            return (
+                self.patient_metadata.DirectoryRecordSequence[0].Rows,
+                self.patient_metadata.DirectoryRecordSequence[0].Columns,
+                int(
+                    self.patient_metadata.DirectoryRecordSequence[0].NumberOfSeriesRelatedInstances)
+            )
 
     def load_volume_parameters(self) -> dict:
         sl = dcm.dcmread(self.get_filenames()[0])
@@ -100,13 +112,13 @@ class Patient:
             "RescaleSloce": sl.RescaleSlope,
         }
 
-    def get_segmented_region(self):
+    def get_segmented_region(self) -> dict:
         mask_size = self.patient_masks.shape
         sl_locations = self.dicom_extraction(only_location=True)
         indexes = []
         locations = []
         # Loop through the slices of the mask image
-        for z,loc in zip(range(mask_size[2]), sl_locations):
+        for z, loc in zip(range(mask_size[2]), sl_locations):
             slice = self.patient_masks[:, :, z]
             if slice.any():
                 if len(np.nonzero(slice)[0]) < 100:
@@ -115,21 +127,26 @@ class Patient:
                     pass
                 indexes.append(z)
                 locations.append(loc)
-        print(len(indexes),len(locations))
+        print(len(indexes), len(locations))
         return {
-            "Indexes":indexes,
-            "SliceLocation":locations
-                }
+            "Indexes": indexes,
+            "SliceLocation": locations
+        }
 
-    def data_ROI_only(self) -> Tuple[np.ndarray, np.ndarray] :
+    def data_ROI_only(self) -> Tuple[np.ndarray, np.ndarray]:
         indexes = self.get_segmented_region()["Indexes"]
-        masks = []
-        slices = []
+        msk = []
+        sl = []
         for i in indexes:
-            masks.append(self.patient_masks[:, :, i])
-            slices.append(self.patient_volume[:, :, i])
+            msk.append(self.patient_masks[:, :, i])
+            sl.append(self.patient_volume[:, :, i])
 
-        return np.array(slices).transpose(1, 2, 0), np.array(masks).transpose(1, 2, 0)
+        masks, vol = np.array(msk).transpose(
+            1, 2, 0), np.array(sl).transpose(1, 2, 0)
+        if self.image_crop:
+            return crop_pad_vol(vol, masks, self.image_crop)
+        else:
+            return vol, masks
 
     def get_centroids(self):
         """
@@ -166,7 +183,7 @@ class Patient:
 
         return centroids
 
-    def get_bounding_box(self, cX:float, cY: float, box_size: tuple =(40, 40)) -> Tuple[int,int,int,int]:
+    def get_bounding_box(self, cX: float, cY: float, box_size: tuple = (40, 40)) -> Tuple[int, int, int, int]:
         """
         Function that returns the `top left` and `bottom right` corner of the bounding box
         """
@@ -187,7 +204,6 @@ class Patient:
         patient_metadata["centroids"] = self.get_centroids()
         return patient_metadata
 
-
     # def resample(self, previous_spacing, new_spacing=[1,1,1]):
     # # Determine current pixel spacing
     #     spacing = np.array(previous_spacing, dtype=np.float32)
@@ -196,15 +212,23 @@ class Patient:
     #     new_shape = np.round(new_real_shape)
     #     real_resize_factor = new_shape / self.patient_volume.shape
     #     new_spacing = spacing / real_resize_factor
-        
+
     #     image = scipy.ndimage.interpolation.zoom(self.patient_volume, real_resize_factor, mode='nearest')
-        
+
         return image, new_spacing
-    def save_volume_with_ROI_only(self, save_metadata: bool=True) -> None:
-        new_volume_path = os.path.join(self.output_path, "ct")
-        new_mask_path = os.path.join(self.output_path, "mask")
-        os.makedirs(new_volume_path, exist_ok=True)
-        os.makedirs(new_mask_path, exist_ok=True)
+
+    def save_volume_with_ROI_only(self, save_metadata: bool = True, slice_by_slice: bool = False) -> None:
+
+        os.makedirs(self.dicom_output, exist_ok=True)
+        os.makedirs(self.mask_output, exist_ok=True)
+
         vol, masks = self.data_ROI_only()
-        np.save(f"{new_volume_path}/{self.patient_id}.npy", vol)
-        np.save(f"{new_mask_path}/{self.patient_id}.npy", masks)
+        if slice_by_slice:
+            for i in range(vol.shape[2]):
+                np.save("{}/{}_{:03d}.npy".format(self.dicom_output,
+                        self.patient_id, i), vol[:, :, i])
+                np.save("{}/{}_{:03d}.npy".format(self.mask_output,
+                        self.patient_id, i), masks[:, :, i])
+        else:
+            np.save(f"{self.dicom_output}/{self.patient_id}.npy", vol)
+            np.save(f"{self.dicom_output}/{self.patient_id}.npy", masks)
