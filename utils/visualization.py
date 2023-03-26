@@ -30,7 +30,7 @@ def visualize_boxes(volume, mask, centroids):
         im.set_data(volume[:, :, index])
         msk.set_data(im_masked[:, :, index])
 
-        for i, coords in enumerate(centroids[z//2]["bbox"], start=2):
+        for i, coords in enumerate(centroids[index]["bbox"], start=2):
 
             axs[i].imshow(volume[
                 coords[1]:coords[3],
