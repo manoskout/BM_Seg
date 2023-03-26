@@ -39,25 +39,20 @@ def main():
 
     for patient_id in PATIENTS:
         pat = Patient(patient_id=patient_id,
-                      ct_dir=DICOM_PATH, mask_dir=ROI_PATH, output_path=OUTPUT_PATH, image_crop=(384, 384))
+                      ct_dir=DICOM_PATH, mask_dir=ROI_PATH,
+                      output_path=OUTPUT_PATH, image_crop=(384, 384),
+                      window="soft_tissue")
         volume, masks = pat.data_ROI_only()
 
         patients_metadata[patient_id] = pat.extract_json_file()
-
-        preprocessing = Preprocessing(
-            window="soft_tissue",
-            metadata=patients_metadata[patient_id]["metadata"]
-        )
         break
-
         # pat.save_volume_with_ROI_only(slice_by_slice=True)
-    save_metadata_json(patients_metadata)
+        # save_metadata_json(patients_metadata)
 
-    windowed_vol = preprocessing.windowing.volume_windowing(volume)
     visualize_boxes(volume, masks, patients_metadata[patient_id]["centroids"])
 
-    visualize_windowing(
-        volume=volume, windowed=windowed_vol)
+    # visualize_windowing(
+    #     volume=volume, windowed=windowed_vol)
 
 
 if __name__ == "__main__":

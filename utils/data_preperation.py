@@ -17,7 +17,8 @@ class Patient:
         mask_dir: str,
         output_path: str,
         mask_extension: str = ".nii.gz",
-        image_crop: Union[tuple, None] = None
+        image_crop: Union[tuple, None] = None,
+        window: Union[str, None] = "soft_tissue"
     ) -> None:
 
         self.patient_id = patient_id
@@ -36,6 +37,10 @@ class Patient:
         self.dicom_output = os.path.join(self.output_path, "images")
         self.mask_output = os.path.join(self.output_path, "masks")
         self.image_crop = image_crop
+        self.preprocessing = Preprocessing(
+            window=window,
+            metadata=self.ct_metadata
+        )
 
     def get_patient_metadata(self,) -> Union[dcm.FileDataset, None]:
         """
@@ -72,7 +77,7 @@ class Patient:
 
         return sorted(dicom_files, key=lambda x: float(x.SliceLocation))
 
-    def get_volume(self) -> np.ndarray:
+    def get_volume(self, ) -> np.ndarray:
         return np.array([sl.pixel_array for sl in self.dicom_extraction()]).transpose(1, 2, 0).astype(np.float32)
 
     def get_modality(self) -> str:
@@ -143,6 +148,7 @@ class Patient:
 
         masks, vol = np.array(msk).transpose(
             1, 2, 0), np.array(sl).transpose(1, 2, 0)
+        vol = self.preprocessing.windowing.volume_windowing(vol)
         if self.image_crop:
             return crop_pad_vol(vol, masks, self.image_crop)
         else:
@@ -150,16 +156,29 @@ class Patient:
 
     def get_centroids(self):
         """
+        TODO-> Fix the doc
+        TODO-> Change the labeling method. In this specific case we do not have any other label for detection,
+            thus, we hardcoded the label 0 for all the cases, where 0 is the region that contains
+            the bone marrow. 
         Get the centroid of each contour using the openCV module
+        centroid: List of length (N,2), where N is the number of bounding boxes in the image. 
+            The array should contain the (cX,cY) coordinates of each bounding box.
+        bbox: np.array of shape (N,4), where N is the number of bounding boxes in the image. 
+            The array should contain the (x_1,y_1,x_2,y_2) coordinates of each bounding box.
+        label: list of shape (N,) that contains the label intex of each bounding box,
+            since we have only one class we set all the labels to the same value (e.g "0")
         """
         slices, masks = self.data_ROI_only()
         print(f"Slices shape : {slices.shape}, Masks shape: {masks.shape}")
         centroids = {}
         for sl in range(slices.shape[2]):
-            centroids[sl] = []
+            labels = []
+            centroids[sl] = {}
             contours, hierarchy = cv.findContours(
                 masks[:, :, sl], cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
             box_size = (20, 20)
+            centroids[sl]["centroid"] = []
+            centroids[sl]["bbox"] = []
             for cnt in contours:
                 M = cv.moments(cnt)
                 cX = int(M["m10"] / M["m00"])
@@ -167,20 +186,9 @@ class Patient:
                 # centroids[sl]["centroid"].append((cX, cY))
                 x1, y1, x2, y2 = self.get_bounding_box(
                     cX, cY, box_size=box_size)
-                centroids[sl].append({
-                    "centroid": {
-                        "x": cX,
-                        "y": cY,
-                    },
-                    "bbox": {
-                        "x1": x1,
-                        "y1": y1,
-                        "x2": x2,
-                        "y2": y2
-                    },
-
-                })
-
+                centroids[sl]["centroid"].append([cX, cY])
+                centroids[sl]["bbox"].append([x1, y1, x2, y2])
+                labels.append(0)
         return centroids
 
     def get_bounding_box(self, cX: float, cY: float, box_size: tuple = (40, 40)) -> Tuple[int, int, int, int]:
@@ -203,19 +211,6 @@ class Patient:
         )
         patient_metadata["centroids"] = self.get_centroids()
         return patient_metadata
-
-    # def resample(self, previous_spacing, new_spacing=[1,1,1]):
-    # # Determine current pixel spacing
-    #     spacing = np.array(previous_spacing, dtype=np.float32)
-    #     resize_factor = spacing / new_spacing
-    #     new_real_shape = self.patient_volume.shape * resize_factor
-    #     new_shape = np.round(new_real_shape)
-    #     real_resize_factor = new_shape / self.patient_volume.shape
-    #     new_spacing = spacing / real_resize_factor
-
-    #     image = scipy.ndimage.interpolation.zoom(self.patient_volume, real_resize_factor, mode='nearest')
-
-        return image, new_spacing
 
     def save_volume_with_ROI_only(self, save_metadata: bool = True, slice_by_slice: bool = False) -> None:
 
