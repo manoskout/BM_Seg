@@ -14,6 +14,9 @@ def visualize_boxes(volume, mask, centroids):
     im_masked = np.ma.masked_array(volume, masked)
     msk = axs[1].imshow(im_masked[:, :, z//2], cmap="gray")
     for i, coords in enumerate(centroids[z//2]["bbox"], start=2):
+        if i==4:
+            print(z//2)
+            break
         axs[i].imshow(volume[
             coords[1]:coords[3],
             coords[0]:coords[2],
@@ -31,6 +34,9 @@ def visualize_boxes(volume, mask, centroids):
         msk.set_data(im_masked[:, :, index])
 
         for i, coords in enumerate(centroids[index]["bbox"], start=2):
+            if i==4:
+                print(index)
+                break
 
             axs[i].imshow(volume[
                 coords[1]:coords[3],

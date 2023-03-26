@@ -45,9 +45,8 @@ def main():
         volume, masks = pat.data_ROI_only()
 
         patients_metadata[patient_id] = pat.extract_json_file()
-        break
-        # pat.save_volume_with_ROI_only(slice_by_slice=True)
-        # save_metadata_json(patients_metadata)
+        pat.save_volume_with_ROI_only(slice_by_slice=True)
+        save_metadata_json(patients_metadata)
 
     visualize_boxes(volume, masks, patients_metadata[patient_id]["centroids"])
 
