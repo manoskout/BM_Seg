@@ -1,17 +1,12 @@
 from data_preperation import Patient, split_data, save_metadata_json
 from visualization import visualize_boxes
 import os
-import json
-import numpy as np
 from config import *
 from typing import Dict, Tuple
-import random
-import shutil
+
 print("The available patients are {pat}".format(pat=PATIENTS))
 
 
-
-    
 def main():
 
     patients_metadata = {}
@@ -20,13 +15,13 @@ def main():
     for patient_id in PATIENTS:
         pat = Patient(patient_id=patient_id,
                       ct_dir=DICOM_PATH, mask_dir=ROI_PATH,
-                      output_path=OUTPUT_PATH, image_crop=(384, 384),
+                      output_path=OUTPUT_PATH, image_crop=None,
                       window="soft_tissue")
         volume, masks = pat.data_ROI_only()
 
         patients_metadata[patient_id] = pat.extract_json_file()
         pat.save_volume_with_ROI_only(slice_by_slice=True)
-    split_data(patients_metadata, ratio = 0.5, )
+    split_data(patients_metadata, ratio=0.5, )
     save_metadata_json(patients_metadata)
 
     # visualize_boxes(volume, masks, patients_metadata[patient_id]["centroids"])
