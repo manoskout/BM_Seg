@@ -1,37 +1,17 @@
-from data_preperation import Patient
-from visualization import visualize_boxes, visualize_windowing
-from preprocess.windowing import Preprocessing
+from data_preperation import Patient, split_data, save_metadata_json
+from visualization import visualize_boxes
 import os
 import json
 import numpy as np
-import cv2 as cv
-
-# GLOBAL Definition
-DICOM_PATH = "../data/ct/"
-ROI_PATH = "../data/roi/"
-OUTPUT_PATH = "../data/output"
-# Get the patient names
-PATIENTS = [i for i in os.listdir(
-    DICOM_PATH) if i != "DIRFILE" and i != ".DS_Store"]
+from config import *
+from typing import Dict, Tuple
+import random
+import shutil
 print("The available patients are {pat}".format(pat=PATIENTS))
 
 
-class SetEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, set):
-            return list(obj)
-        return json.JSONEncoder.default(self, obj)
 
-
-def save_metadata_json(data):
-    output_file = f'{OUTPUT_PATH}/metadata.json'
-    os.makedirs(OUTPUT_PATH, exist_ok=True)
-    if os.path.exists(output_file):
-        os.remove(output_file)
-    with open(output_file, 'w') as outfile:
-        json.dump(data, outfile, cls=SetEncoder)
-
-
+    
 def main():
 
     patients_metadata = {}
@@ -46,12 +26,10 @@ def main():
 
         patients_metadata[patient_id] = pat.extract_json_file()
         pat.save_volume_with_ROI_only(slice_by_slice=True)
-        save_metadata_json(patients_metadata)
+    split_data(patients_metadata, ratio = 0.5, )
+    save_metadata_json(patients_metadata)
 
-    visualize_boxes(volume, masks, patients_metadata[patient_id]["centroids"])
-
-    # visualize_windowing(
-    #     volume=volume, windowed=windowed_vol)
+    # visualize_boxes(volume, masks, patients_metadata[patient_id]["centroids"])
 
 
 if __name__ == "__main__":

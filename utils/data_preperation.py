@@ -1,13 +1,58 @@
-from typing import Union, Tuple
+from typing import Union, Tuple, Dict
 import pydicom as dcm
-from pydicom import dicomdir
 import numpy as np
 import nibabel as nib
+import json
 import os
 import cv2 as cv
 from preprocess.windowing import Preprocessing, crop_pad_vol
-import scipy
+from config import *
+import random
+import shutil
 
+class SetEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, set):
+            return list(obj)
+        return json.JSONEncoder.default(self, obj)
+
+
+def save_metadata_json(data: Dict):
+    output_file = f'{OUTPUT_PATH}/metadata.json'
+    os.makedirs(OUTPUT_PATH, exist_ok=True)
+    if os.path.exists(output_file):
+        os.remove(output_file)
+    with open(output_file, 'w') as outfile:
+        json.dump(data, outfile, cls=SetEncoder)
+
+def split_data(metadata: Dict, ratio: float=0.5,) -> None:
+    image_path = os.path.join(OUTPUT_PATH,"images")
+    mask_path = os.path.join(OUTPUT_PATH,"masks")
+
+    train_img_path = os.path.join(TRAINING_PATH,"images")
+    train_msk_path = os.path.join(TRAINING_PATH, "masks")
+    os.makedirs(TRAINING_PATH, exist_ok=True)
+
+    test_img_path = os.path.join(TESTING_PATH,"images")
+    test_msk_path = os.path.join(TESTING_PATH,"masks")
+    os.makedirs(TESTING_PATH, exist_ok=True)
+    random.seed(42)
+    random.shuffle(PATIENTS)
+    
+    train_data = PATIENTS[:int(ratio*len(PATIENTS))]
+    test_data = PATIENTS[int(ratio*len(PATIENTS)):]
+    train_filenames = [filename for filename in os.listdir(image_path) if filename.split("_")[0] in train_data]
+    test_filenames = [filename for filename in os.listdir(mask_path) if filename.split("_")[0] in test_data]
+    for tr_fname in train_filenames:
+        shutil.move(os.path.join(image_path,tr_fname),os.path.join(train_img_path,tr_fname))
+        shutil.move(os.path.join(mask_path,tr_fname),os.path.join(train_msk_path,tr_fname))
+    for ts_fname in test_filenames:
+        shutil.move(os.path.join(image_path,ts_fname),os.path.join(test_img_path,ts_fname))
+        shutil.move(os.path.join(mask_path,ts_fname),os.path.join(test_msk_path,ts_fname))
+
+    if not os.listdir(image_path) and not os.listdir(mask_path):
+        os.rmdir(image_path)
+        os.rmdir(mask_path)
 
 class Patient:
     def __init__(
@@ -212,7 +257,7 @@ class Patient:
         patient_metadata["centroids"] = self.get_centroids()
         return patient_metadata
 
-    def save_volume_with_ROI_only(self, save_metadata: bool = True, slice_by_slice: bool = False) -> None:
+    def save_volume_with_ROI_only(self, save_metadata: bool = True, slice_by_slice: bool = False,) -> None:
 
         os.makedirs(self.dicom_output, exist_ok=True)
         os.makedirs(self.mask_output, exist_ok=True)
