@@ -9,6 +9,8 @@ from preprocess.windowing import Preprocessing, crop_pad_vol
 from config import *
 import random
 import shutil
+from annotation_format import COCOFormat
+
 
 class SetEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -25,34 +27,45 @@ def save_metadata_json(data: Dict):
     with open(output_file, 'w') as outfile:
         json.dump(data, outfile, cls=SetEncoder)
 
-def split_data(metadata: Dict, ratio: float=0.5,) -> None:
-    image_path = os.path.join(OUTPUT_PATH,"images")
-    mask_path = os.path.join(OUTPUT_PATH,"masks")
 
-    train_img_path = os.path.join(TRAINING_PATH,"images")
+def split_data(metadata: Dict, ratio: float = 0.5,) -> None:
+    image_path = os.path.join(OUTPUT_PATH, "images")
+    mask_path = os.path.join(OUTPUT_PATH, "masks")
+
+    train_img_path = os.path.join(TRAINING_PATH, "images")
     train_msk_path = os.path.join(TRAINING_PATH, "masks")
-    os.makedirs(TRAINING_PATH, exist_ok=True)
+    os.makedirs(train_img_path, exist_ok=True)
+    os.makedirs(train_msk_path, exist_ok=True)
 
-    test_img_path = os.path.join(TESTING_PATH,"images")
-    test_msk_path = os.path.join(TESTING_PATH,"masks")
-    os.makedirs(TESTING_PATH, exist_ok=True)
+    test_img_path = os.path.join(TESTING_PATH, "images")
+    test_msk_path = os.path.join(TESTING_PATH, "masks")
+    os.makedirs(test_img_path, exist_ok=True)
+    os.makedirs(test_msk_path, exist_ok=True)
+
     random.seed(42)
     random.shuffle(PATIENTS)
-    
+
     train_data = PATIENTS[:int(ratio*len(PATIENTS))]
     test_data = PATIENTS[int(ratio*len(PATIENTS)):]
-    train_filenames = [filename for filename in os.listdir(image_path) if filename.split("_")[0] in train_data]
-    test_filenames = [filename for filename in os.listdir(mask_path) if filename.split("_")[0] in test_data]
+    train_filenames = [filename for filename in os.listdir(
+        image_path) if filename.split("_")[0] in train_data]
+    test_filenames = [filename for filename in os.listdir(
+        mask_path) if filename.split("_")[0] in test_data]
     for tr_fname in train_filenames:
-        shutil.move(os.path.join(image_path,tr_fname),os.path.join(train_img_path,tr_fname))
-        shutil.move(os.path.join(mask_path,tr_fname),os.path.join(train_msk_path,tr_fname))
+        shutil.move(os.path.join(image_path, tr_fname),
+                    os.path.join(train_img_path, tr_fname))
+        shutil.move(os.path.join(mask_path, tr_fname),
+                    os.path.join(train_msk_path, tr_fname))
     for ts_fname in test_filenames:
-        shutil.move(os.path.join(image_path,ts_fname),os.path.join(test_img_path,ts_fname))
-        shutil.move(os.path.join(mask_path,ts_fname),os.path.join(test_msk_path,ts_fname))
+        shutil.move(os.path.join(image_path, ts_fname),
+                    os.path.join(test_img_path, ts_fname))
+        shutil.move(os.path.join(mask_path, ts_fname),
+                    os.path.join(test_msk_path, ts_fname))
 
     if not os.listdir(image_path) and not os.listdir(mask_path):
         os.rmdir(image_path)
         os.rmdir(mask_path)
+
 
 class Patient:
     def __init__(
@@ -74,6 +87,7 @@ class Patient:
 
         self.ct_path = os.path.join(ct_dir, patient_id)
         self.mask_path = os.path.join(mask_dir, patient_id+mask_extension)
+        self.annotation_dict = COCOFormat()
         self.patient_metadata = self.get_patient_metadata()
         self.ct_metadata = self.load_volume_parameters()
         self.patient_volume = self.get_volume()
@@ -249,6 +263,9 @@ class Patient:
         return (x1, y1, x2, y2)
 
     def extract_json_file(self, ) -> dict:
+        """
+        Extraction of annotation in JSON file (like COCO annotations)
+        """
         patient_metadata = {}
         patient_metadata["metadata"] = self.load_volume_parameters(
         )
