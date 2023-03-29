@@ -9,7 +9,7 @@ from preprocess.windowing import Preprocessing, crop_pad_vol
 from config import *
 import random
 import shutil
-from annotation_format import COCOFormat
+# from annotation_format import COCOFormat
 
 
 class SetEncoder(json.JSONEncoder):
@@ -19,8 +19,7 @@ class SetEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def save_metadata_json(data: Dict):
-    output_file = f'{OUTPUT_PATH}/metadata.json'
+def save_metadata_json(data: Dict, output_file: str = f'{OUTPUT_PATH}/metadata.json'):
     os.makedirs(OUTPUT_PATH, exist_ok=True)
     if os.path.exists(output_file):
         os.remove(output_file)
@@ -28,7 +27,7 @@ def save_metadata_json(data: Dict):
         json.dump(data, outfile, cls=SetEncoder)
 
 
-def split_data(metadata: Dict, ratio: float = 0.5,) -> None:
+def split_data(ratio: float = 0.5, get_split_results: bool = True) -> dict:
     image_path = os.path.join(OUTPUT_PATH, "images")
     mask_path = os.path.join(OUTPUT_PATH, "masks")
 
@@ -65,6 +64,10 @@ def split_data(metadata: Dict, ratio: float = 0.5,) -> None:
     if not os.listdir(image_path) and not os.listdir(mask_path):
         os.rmdir(image_path)
         os.rmdir(mask_path)
+    return {
+        "train": train_data,
+        "test": test_data
+    }
 
 
 class Patient:
@@ -76,7 +79,8 @@ class Patient:
         output_path: str,
         mask_extension: str = ".nii.gz",
         image_crop: Union[tuple, None] = None,
-        window: Union[str, None] = "soft_tissue"
+        window: Union[str, None] = "soft_tissue",
+        # annotation_format: str = "COCO",
     ) -> None:
 
         self.patient_id = patient_id
@@ -87,11 +91,11 @@ class Patient:
 
         self.ct_path = os.path.join(ct_dir, patient_id)
         self.mask_path = os.path.join(mask_dir, patient_id+mask_extension)
-        self.annotation_dict = COCOFormat()
         self.patient_metadata = self.get_patient_metadata()
         self.ct_metadata = self.load_volume_parameters()
         self.patient_volume = self.get_volume()
         self.patient_masks = self.get_mask()
+        self.classes = list(np.unique(self.patient_masks))
         self.output_path = output_path
         self.dicom_output = os.path.join(self.output_path, "images")
         self.mask_output = os.path.join(self.output_path, "masks")
@@ -100,16 +104,38 @@ class Patient:
             window=window,
             metadata=self.ct_metadata
         )
+        # self.annotation_dict = self.set_annotation_generator(annotation_format)
 
-    def get_patient_metadata(self,) -> Union[dcm.FileDataset, None]:
+    # def set_annotation_generator(self, ann_type: str):
+    #     # TODO -> Throw an exception
+    #     if ann_type == "COCO":
+    #         return COCOFormat(
+    #             info=self.ct_metadata,
+    #             classes=list(np.unique(self.patient_masks)),
+    #             licenses=None
+    #         )
+
+    def get_patient_metadata(self,) -> dict:
         """
         Each CT scan contains its own DIRFILE that contains 
         information for patient's metadata and the CT volume
         """
+        metadata = {}
         if os.path.exists(os.path.join(self.ct_path, "DIRFILE")):
-            metadata = dcm.dcmread(os.path.join(self.ct_path, "DIRFILE"))
-        else:
-            return None
+            series_info = dcm.dcmread(os.path.join(self.ct_path, "DIRFILE"))
+            metadata["SeriesDate"] = series_info.DirectoryRecordSequence[0].SeriesDate
+            metadata["Description"] = series_info.DirectoryRecordSequence[0].ProtocolName
+            # print(series_info)
+            metadata["Version"] = series_info.file_meta.ImplementationVersionName
+            metadata["Modality"] = series_info.DirectoryRecordSequence[0].Modality
+            metadata["NumberOfSeriesRelatedInstances"] = series_info.DirectoryRecordSequence[0].NumberOfSeriesRelatedInstances
+            metadata["Rows"] = series_info.DirectoryRecordSequence[0].Rows
+            # print(series_info.DirectoryRecordSequence[0])
+            metadata["Cols"] = series_info.DirectoryRecordSequence[0].Columns
+
+            metadata["ReferencedFileID"] = series_info.DirectoryRecordSequence[0].ReferencedFileID[1]
+            metadata["NumberOfSeriesRelatedInstances"] = series_info.DirectoryRecordSequence[0].NumberOfSeriesRelatedInstances
+
         return metadata
 
     def get_filenames(self,) -> Union[list, None]:
@@ -120,7 +146,7 @@ class Patient:
         try:
             if self.patient_metadata:
                 ct_folder = os.path.join(
-                    self.ct_path, self.patient_metadata.DirectoryRecordSequence[0].ReferencedFileID[1])
+                    self.ct_path, self.patient_metadata["ReferencedFileID"])
                 return [os.path.join(ct_folder, i) for i in os.listdir(ct_folder)
                         if i != "DIRFILE" and i != ".DS_Store"]
         except ValueError as e:
@@ -140,7 +166,7 @@ class Patient:
         return np.array([sl.pixel_array for sl in self.dicom_extraction()]).transpose(1, 2, 0).astype(np.float32)
 
     def get_modality(self) -> str:
-        return self.patient_metadata.DirectoryRecordSequence[0].Modality
+        return self.patient_metadata["Modality"]
 
     def get_mask(self) -> np.ndarray:
         # print(f"{self.mask_path}, \n {self.ct_path}")
@@ -156,14 +182,14 @@ class Patient:
                 self.image_crop[0],
                 self.image_crop[1],
                 int(
-                    self.patient_metadata.DirectoryRecordSequence[0].NumberOfSeriesRelatedInstances)
+                    self.patient_metadata["NumberOfSeriesRelatedInstances"])
             )
         else:
             return (
-                self.patient_metadata.DirectoryRecordSequence[0].Rows,
-                self.patient_metadata.DirectoryRecordSequence[0].Columns,
+                self.patient_metadata["Rows"],
+                self.patient_metadata["Columns"],
                 int(
-                    self.patient_metadata.DirectoryRecordSequence[0].NumberOfSeriesRelatedInstances)
+                    self.patient_metadata["NumberOfSeriesRelatedInstances"])
             )
 
     def load_volume_parameters(self) -> dict:
@@ -197,7 +223,7 @@ class Patient:
             "SliceLocation": locations
         }
 
-    def data_ROI_only(self) -> Tuple[np.ndarray, np.ndarray]:
+    def data_ROI_only(self) -> Tuple[np.ndarray, np.ndarray, list]:
         indexes = self.get_segmented_region()["Indexes"]
         msk = []
         sl = []
@@ -209,9 +235,26 @@ class Patient:
             1, 2, 0), np.array(sl).transpose(1, 2, 0)
         vol = self.preprocessing.windowing.volume_windowing(vol)
         if self.image_crop:
-            return crop_pad_vol(vol, masks, self.image_crop)
+            cropped_vol, cropped_mask = crop_pad_vol(
+                vol, masks, self.image_crop)
+            return cropped_vol, cropped_mask, indexes
         else:
-            return vol, masks
+            return vol, masks, indexes
+
+    def check_the_coordinates(self, centroids: list, bboxes: list, labels: list) -> tuple:
+        """
+        TODO -> Taking the min and max bboxes is not the optimal solution
+        """
+        min_centroid = min(centroids)
+        max_centroid = max(centroids)
+        min_index = centroids.index(min_centroid)
+        max_index = centroids.index(max_centroid)
+        min_coordinate = bboxes[min_index]
+        max_coordinate = bboxes[max_index]
+        min_label = labels[min_index]
+        max_label = labels[max_index]
+
+        return ([min_centroid, max_centroid], [min_coordinate, max_coordinate], [min_label, max_label])
 
     def get_centroids(self):
         """
@@ -227,7 +270,7 @@ class Patient:
         label: list of shape (N,) that contains the label intex of each bounding box,
             since we have only one class we set all the labels to the same value (e.g "0")
         """
-        slices, masks = self.data_ROI_only()
+        slices, masks, _ = self.data_ROI_only()
         print(f"Slices shape : {slices.shape}, Masks shape: {masks.shape}")
         centroids = {}
         for sl in range(slices.shape[2]):
@@ -238,6 +281,8 @@ class Patient:
             box_size = (20, 20)
             centroids[sl]["centroid"] = []
             centroids[sl]["bbox"] = []
+            centroids[sl]["labels"] = []
+
             for cnt in contours:
                 M = cv.moments(cnt)
                 cX = int(M["m10"] / M["m00"])
@@ -247,7 +292,9 @@ class Patient:
                     cX, cY, box_size=box_size)
                 centroids[sl]["centroid"].append([cX, cY])
                 centroids[sl]["bbox"].append([x1, y1, x2, y2])
-                labels.append(0)
+                centroids[sl]["labels"].append(1)
+            centroids[sl]["centroid"], centroids[sl]["bbox"], centroids[sl]["labels"] = self.check_the_coordinates(
+                centroids[sl]["centroid"], centroids[sl]["bbox"], centroids[sl]["labels"])
         return centroids
 
     def get_bounding_box(self, cX: float, cY: float, box_size: tuple = (40, 40)) -> Tuple[int, int, int, int]:
@@ -279,13 +326,15 @@ class Patient:
         os.makedirs(self.dicom_output, exist_ok=True)
         os.makedirs(self.mask_output, exist_ok=True)
 
-        vol, masks = self.data_ROI_only()
+        vol, masks, index = self.data_ROI_only()
         if slice_by_slice:
             for i in range(vol.shape[2]):
-                np.save("{}/{}_{:03d}.npy".format(self.dicom_output,
-                        self.patient_id, i), vol[:, :, i])
-                np.save("{}/{}_{:03d}.npy".format(self.mask_output,
-                        self.patient_id, i), masks[:, :, i])
+                curr_fname = "{}_{:03d}.npy".format(self.patient_id, i)
+
+                np.save(os.path.join(self.dicom_output,
+                        curr_fname), vol[:, :, i])
+                np.save(os.path.join(self.mask_output,
+                        curr_fname), masks[:, :, i])
         else:
             np.save(f"{self.dicom_output}/{self.patient_id}.npy", vol)
-            np.save(f"{self.dicom_output}/{self.patient_id}.npy", masks)
+            np.save(f"{self.mask_output}/{self.patient_id}.npy", masks)
