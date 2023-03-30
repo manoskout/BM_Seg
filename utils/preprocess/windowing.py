@@ -25,7 +25,7 @@ def crop_pad_vol(vol:np.ndarray, mask: np.ndarray, crop_size:tuple = (384,384))-
 
     # Add padding, if the image is smaller than the desired dimensions
     old_image_height, old_image_width, old_image_z = cropped_img.shape
-    new_image_height, new_image_width = old_image_height, old_image_width
+    new_image_height, new_image_width ,new_image_z = old_image_height, old_image_width, old_image_z
 
     if old_image_height < cropy:
         new_image_height = cropy
@@ -35,9 +35,9 @@ def crop_pad_vol(vol:np.ndarray, mask: np.ndarray, crop_size:tuple = (384,384))-
     if (old_image_height != new_image_height) or (old_image_width != new_image_width):
 
         padded_img = np.full(
-            (new_image_height, new_image_width), 0, dtype=np.float32)
+            (new_image_height, new_image_width, new_image_z), 0, dtype=np.uint8)
         padded_msk = np.full(
-            (new_image_height, new_image_width), 0, dtype=np.float32)
+            (new_image_height, new_image_width, new_image_z), 0, dtype=np.uint8)
 
         x_center = (new_image_height - old_image_width) // 2
         y_center = (new_image_width - old_image_height) // 2
@@ -45,10 +45,13 @@ def crop_pad_vol(vol:np.ndarray, mask: np.ndarray, crop_size:tuple = (384,384))-
         padded_img[y_center:y_center+old_image_height,
                     x_center:x_center+old_image_width, :] = cropped_img
         padded_msk[y_center:y_center+old_image_height,
-                    x_center:x_center+old_image_width, :] = cropped_img
+                    x_center:x_center+old_image_width, :] = cropped_msk
 
         # print('Padded: ',padded_img.shape)
         new_vol, new_mask = padded_img, padded_msk
+        import matplotlib.pyplot as plt
+        plt.imshow(new_mask[:,:,100], cmap="gray")
+        plt.show()
 
     else:
         new_vol, new_mask = cropped_img, cropped_msk
