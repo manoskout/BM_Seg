@@ -235,13 +235,21 @@ class Patient:
         for z, loc in zip(range(mask_size[2]), sl_locations):
             slice = self.patient_masks[:, :, z]
             if slice.any():
-                if len(np.nonzero(slice)[0]) < 100:
+                if len(np.nonzero(slice[:, :256])[0]) > 30 and len(np.nonzero(slice[:, 256:])[0]) > 30:
                     # If the pixel size of the segmented region
                     # is less than 100 the dont pass it
-                    pass
-                indexes.append(z)
-                locations.append(loc)
-        print(len(indexes), len(locations))
+                    # import matplotlib.pyplot as plt
+                    # # print(
+                    # # f"{self.patient_id}, slice: {sl}")
+                    # plt.imshow(slice)
+                    # plt.show()
+                    # plt.imshow(slice)
+                    # plt.show()
+                    indexes.append(z)
+                    locations.append(loc)
+            else:
+                pass
+        # print(len(indexes), len(locations))
         return {
             "Indexes": indexes,
             "SliceLocation": locations
@@ -257,10 +265,13 @@ class Patient:
 
         masks, vol = np.array(msk).transpose(
             1, 2, 0), np.array(sl).transpose(1, 2, 0)
+
         vol = self.preprocessing.windowing.volume_windowing(vol)
         if self.image_crop:
             cropped_vol, cropped_mask = crop_pad_vol(
                 vol, masks, self.image_crop)
+            # print("----> ", masks.shape, cropped_mask.shape)
+
             return cropped_vol, cropped_mask, indexes
         else:
             return vol, masks, indexes
@@ -269,16 +280,19 @@ class Patient:
         """
         TODO -> Taking the min and max bboxes is not the optimal solution
         """
-        min_centroid = min(centroids)
-        max_centroid = max(centroids)
-        min_index = centroids.index(min_centroid)
-        max_index = centroids.index(max_centroid)
-        min_coordinate = bboxes[min_index]
-        max_coordinate = bboxes[max_index]
-        min_label = labels[min_index]
-        max_label = labels[max_index]
+        try:
+            min_centroid = min(centroids)
+            max_centroid = max(centroids)
+            min_index = centroids.index(min_centroid)
+            max_index = centroids.index(max_centroid)
+            min_coordinate = bboxes[min_index]
+            max_coordinate = bboxes[max_index]
+            min_label = labels[min_index]
+            max_label = labels[max_index]
 
-        return ([min_centroid, max_centroid], [min_coordinate, max_coordinate], [min_label, max_label])
+            return ([min_centroid, max_centroid], [min_coordinate, max_coordinate], [min_label, max_label])
+        except ValueError:
+            print(f"VALUE ERROR -> centroids: {centroids}")
 
     def get_centroids(self):
         """
@@ -295,7 +309,7 @@ class Patient:
             since we have only one class we set all the labels to the same value (e.g "0")
         """
         slices, masks, _ = self.data_ROI_only()
-        print(f"Slices shape : {slices.shape}, Masks shape: {masks.shape}")
+        # print(f"Slices shape : {slices.shape}, Masks shape: {masks.shape}")
         centroids = {}
         for sl in range(slices.shape[2]):
             labels = []
@@ -306,17 +320,29 @@ class Patient:
             centroids[sl]["centroid"] = []
             centroids[sl]["bbox"] = []
             centroids[sl]["labels"] = []
-
+            # print(len(contours))
+            # Problem when there are more than 2 contours
+            # For example there are some segments that have some
+            # unconncted pieces causing ZeroDivision Error
+            # problem
             for cnt in contours:
                 M = cv.moments(cnt)
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-                # centroids[sl]["centroid"].append((cX, cY))
-                x1, y1, x2, y2 = self.get_bounding_box(
-                    cX, cY, box_size=box_size)
-                centroids[sl]["centroid"].append([cX, cY])
-                centroids[sl]["bbox"].append([x1, y1, x2, y2])
-                centroids[sl]["labels"].append(1)
+                try:
+                    cX = int(M["m10"] / M["m00"])
+                    cY = int(M["m01"] / M["m00"])
+                    # centroids[sl]["centroid"].append((cX, cY))
+                    x1, y1, x2, y2 = self.get_bounding_box(
+                        cX, cY, box_size=box_size)
+                    centroids[sl]["centroid"].append([cX, cY])
+                    centroids[sl]["bbox"].append([x1, y1, x2, y2])
+                    centroids[sl]["labels"].append(1)
+
+                except ZeroDivisionError:
+                    print(f'{M["m10"]} /{ M["m00"]}')
+                    print(f'{M["m01"]} /{ M["m00"]}')
+                    # self.huge_prob = (masks[:, :, sl], sl)
+                    pass
+
             centroids[sl]["centroid"], centroids[sl]["bbox"], centroids[sl]["labels"] = self.check_the_coordinates(
                 centroids[sl]["centroid"], centroids[sl]["bbox"], centroids[sl]["labels"])
         return centroids
