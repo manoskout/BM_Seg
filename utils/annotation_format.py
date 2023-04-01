@@ -120,7 +120,7 @@ class COCOFormat():
     def create_COCOJSON(self, path: str) -> None:
         save_metadata_json(data=self.get_output(), output_file=path)
 
-    def split_annotation(self, training_data, testing_data, train_path, test_path):
+    def split_annotation(self, training_data: list, testing_data: list, train_path: str, test_path: str, valid_data: Union[list, None] = None, valid_path: Union[None, str] = None):
         final = self.get_output()
         train = {}
         test = {}
@@ -146,6 +146,22 @@ class COCOFormat():
                                if annotation["image_id"] in test_imgIDs]
         train["annotations"] = [annotation for annotation in final["annotations"]
                                 if annotation["image_id"] in train_imgIDs]
+
+        if valid_data and valid_path:
+            valid = {}
+            valid["info"] = final["info"]
+
+            valid["licenses"] = final["licenses"]
+
+            valid["categories"] = final["categories"]
+            valid["images"] = [image for image in final["images"]
+                               if image["file_name"].split("_")[0] in valid_data]
+
+            valid_imgIDs = [image["id"] for image in valid["images"]]
+
+            valid["annotations"] = [annotation for annotation in final["annotations"]
+                                    if annotation["image_id"] in valid_imgIDs]
+            save_metadata_json(valid, output_file=valid_path)
 
         save_metadata_json(train, output_file=train_path)
         save_metadata_json(test, output_file=test_path)
