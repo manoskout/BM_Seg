@@ -4,6 +4,7 @@ import os
 from config import *
 from typing import Dict, Tuple
 from annotation_format import COCOFormat
+import random
 print("The available patients are {pat}".format(pat=PATIENTS))
 
 
@@ -12,6 +13,11 @@ def main():
     patients_metadata = {}
     os.makedirs(os.path.join(OUTPUT_PATH), exist_ok=True)
     categories = [
+        {
+            "supercategory": None,
+            "id": 0,
+            "name": "background"
+        },
         {
             "supercategory": "bone",
             "id": 1,
@@ -23,7 +29,7 @@ def main():
     # Get the general information from the dataset
     pat = Patient(patient_id=PATIENTS[0],
                   ct_dir=DICOM_PATH, mask_dir=ROI_PATH,
-                  output_path=OUTPUT_PATH, image_crop=None,
+                  output_path=OUTPUT_PATH, image_crop=INPUT_SIZE,
                   window="soft_tissue")
     metadata = pat.patient_metadata
 
