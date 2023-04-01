@@ -27,7 +27,7 @@ def save_metadata_json(data: Dict, output_file: str = f'{OUTPUT_PATH}/metadata.j
         json.dump(data, outfile, cls=SetEncoder)
 
 
-def split_data(ratio: float = 0.5, get_split_results: bool = True) -> dict:
+def split_data(ratio: float = 0.3, valid: bool = False, val_ratio: float = 1.) -> dict:
     image_path = os.path.join(OUTPUT_PATH, "images")
     mask_path = os.path.join(OUTPUT_PATH, "masks")
 
@@ -45,9 +45,10 @@ def split_data(ratio: float = 0.5, get_split_results: bool = True) -> dict:
     random.shuffle(PATIENTS)
 
     train_data = PATIENTS[:int(ratio*len(PATIENTS))]
-    test_data = PATIENTS[int(ratio*len(PATIENTS)):]
+    test_data = PATIENTS[int(ratio*len(PATIENTS))                         :int(ratio*len(PATIENTS)+val_ratio*len(PATIENTS))]
     train_filenames = [filename for filename in os.listdir(
         image_path) if filename.split("_")[0] in train_data]
+
     test_filenames = [filename for filename in os.listdir(
         mask_path) if filename.split("_")[0] in test_data]
     for tr_fname in train_filenames:
@@ -61,13 +62,36 @@ def split_data(ratio: float = 0.5, get_split_results: bool = True) -> dict:
         shutil.move(os.path.join(mask_path, ts_fname),
                     os.path.join(test_msk_path, ts_fname))
 
+    if valid:
+        valid_img_path = os.path.join(VALIDATION_PATH, "images")
+        valid_msk_path = os.path.join(VALIDATION_PATH, "masks")
+        os.makedirs(valid_img_path, exist_ok=True)
+        os.makedirs(valid_msk_path, exist_ok=True)
+        valid_data = PATIENTS[int(
+            ratio*len(PATIENTS)+val_ratio*len(PATIENTS)):]
+        valid_filenames = [filename for filename in os.listdir(
+            mask_path) if filename.split("_")[0] in valid_data]
+
+        for vl_fname in valid_filenames:
+            shutil.move(os.path.join(image_path, vl_fname),
+                        os.path.join(valid_img_path, vl_fname))
+            shutil.move(os.path.join(mask_path, vl_fname),
+                        os.path.join(valid_msk_path, vl_fname))
+        paths = {
+            "train": train_data,
+            "test": test_data,
+            "valid": valid_data
+        }
+    else:
+        paths = {
+            "train": train_data,
+            "test": test_data,
+        }
     if not os.listdir(image_path) and not os.listdir(mask_path):
         os.rmdir(image_path)
         os.rmdir(mask_path)
-    return {
-        "train": train_data,
-        "test": test_data
-    }
+
+    return paths
 
 
 class Patient:
