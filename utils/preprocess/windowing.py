@@ -35,7 +35,7 @@ def crop_pad_vol(vol:np.ndarray, mask: np.ndarray, crop_size:tuple = (384,384))-
     if (old_image_height != new_image_height) or (old_image_width != new_image_width):
 
         padded_img = np.full(
-            (new_image_height, new_image_width, new_image_z), 0, dtype=np.uint8)
+            (new_image_height, new_image_width, new_image_z), 0, dtype=np.float32)
         padded_msk = np.full(
             (new_image_height, new_image_width, new_image_z), 0, dtype=np.uint8)
 
@@ -47,15 +47,9 @@ def crop_pad_vol(vol:np.ndarray, mask: np.ndarray, crop_size:tuple = (384,384))-
         padded_msk[y_center:y_center+old_image_height,
                     x_center:x_center+old_image_width, :] = cropped_msk
 
-        # print('Padded: ',padded_img.shape)
         new_vol, new_mask = padded_img, padded_msk
-        import matplotlib.pyplot as plt
-        plt.imshow(new_mask[:,:,100], cmap="gray")
-        plt.show()
-
     else:
         new_vol, new_mask = cropped_img, cropped_msk
-    # print("IMAGE_SHAPE: ",new_sample['image'].shape)
     return new_vol, new_mask
 
 def check_volume(vol):
